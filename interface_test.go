@@ -12,15 +12,15 @@ import (
 	peer "github.com/libp2p/go-libp2p-peer"
 )
 
-func NewTestSessionGenerator(typ, bits int, t *testing.T) SessionGenerator {
+func NewTestSessionGenerator(typ, bits int, tb testing.TB) SessionGenerator {
 	sk, pk, err := ci.GenerateKeyPair(typ, bits)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 
 	p, err := peer.IDFromPublicKey(pk)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 
 	return SessionGenerator{
@@ -37,10 +37,10 @@ func max(a, b int) int {
 }
 
 // Create a new pair of connected TCP sockets.
-func NewConnPair(t *testing.T) (client net.Conn, server net.Conn) {
+func NewConnPair(tb testing.TB) (client net.Conn, server net.Conn) {
 	lstnr, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
-		t.Fatalf("Failed to listen: %v", err)
+		tb.Fatalf("Failed to listen: %v", err)
 		return
 	}
 
@@ -59,11 +59,11 @@ func NewConnPair(t *testing.T) (client net.Conn, server net.Conn) {
 	lstnr.Close()
 
 	if err != nil {
-		t.Fatalf("Failed to accept: %v", err)
+		tb.Fatalf("Failed to accept: %v", err)
 	}
 
 	if client_err != nil {
-		t.Fatalf("Failed to connect: %v", client_err)
+		tb.Fatalf("Failed to connect: %v", client_err)
 	}
 
 	return client, server
@@ -71,14 +71,24 @@ func NewConnPair(t *testing.T) (client net.Conn, server net.Conn) {
 
 // Create a new pair of connected sessions based off of the provided
 // session generators.
-func NewTestSessionPair(client_sg, server_sg SessionGenerator,
-	t *testing.T) (client_sess Session, server_sess Session) {
+func NewTestSessionPair(
+	client_sg, server_sg SessionGenerator,
+	tb testing.TB) (client_sess Session, server_sess Session) {
+	return NewTestSessionPairNoDelay(client_sg, server_sg, false, false, tb)
+}
+
+func NewTestSessionPairNoDelay(
+	client_sg, server_sg SessionGenerator,
+	clientNoDelay bool, serverNoDelay bool,
+	tb testing.TB) (client_sess Session, server_sess Session) {
 	var (
 		err        error
 		client_err error
 	)
 
-	client, server := NewConnPair(t)
+	client, server := NewConnPair(tb)
+	client.(*net.TCPConn).SetNoDelay(clientNoDelay)
+	server.(*net.TCPConn).SetNoDelay(serverNoDelay)
 
 	// Connect the client and server sessions
 	done := make(chan struct{})
@@ -92,11 +102,11 @@ func NewTestSessionPair(client_sg, server_sg SessionGenerator,
 	<-done
 
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 
 	if client_err != nil {
-		t.Fatal(client_err)
+		tb.Fatal(client_err)
 	}
 
 	return
